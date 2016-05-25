@@ -7,7 +7,8 @@ from bottle import get, run, request, response, static_file
 from py2neo import Graph
 
 
-graph = Graph()
+#password = {Your neo4j password}
+graph = Graph(password = "xxxxxx")
 
 
 @get("/")
@@ -17,7 +18,7 @@ def get_index():
 
 @get("/graph")
 def get_graph():
-    results = graph.cypher.execute(
+    results = graph.run(
         "MATCH (m:Movie)<-[:ACTED_IN]-(a:Person) "
         "RETURN m.title as movie, collect(a.name) as cast "
         "LIMIT {limit}", {"limit": 100})
@@ -47,25 +48,25 @@ def get_search():
     except KeyError:
         return []
     else:
-        results = graph.cypher.execute(
+        results = graph.run(
             "MATCH (movie:Movie) "
             "WHERE movie.title =~ {title} "
             "RETURN movie", {"title": "(?i).*" + q + ".*"})
         response.content_type = "application/json"
-        return json.dumps([{"movie": row.movie.properties} for row in results])
+        return json.dumps([{"movie": dict(row["movie"])} for row in results])
 
 
 @get("/movie/<title>")
 def get_movie(title):
-    results = graph.cypher.execute(
+    results = graph.run(
         "MATCH (movie:Movie {title:{title}}) "
         "OPTIONAL MATCH (movie)<-[r]-(person:Person) "
         "RETURN movie.title as title,"
         "collect([person.name, head(split(lower(type(r)),'_')), r.roles]) as cast "
         "LIMIT 1", {"title": title})
-    row = results[0]
-    return {"title": row.title,
-            "cast": [dict(zip(("name", "job", "role"), member)) for member in row.cast]}
+    row = results.next()
+    return {"title": row["title"],
+            "cast": [dict(zip(("name", "job", "role"), member)) for member in row["cast"]]}
 
 
 if __name__ == "__main__":
